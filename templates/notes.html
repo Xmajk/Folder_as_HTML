@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/static/notes/style.css">
+    </head>
+    <body>
+        {% if elements %}
+        <div class="elements">
+        {% for is_dir,name,url in elements %}
+            {% if is_dir %}
+            <div class="element">
+                <a href="{{ url_for('zapisky_branch', subpath=url) }}">{{name}}</a>
+                <br>
+                <a href="{{ url_for('download', subpath=url) }}" class="reference">Stáhnout</a>
+            </div>
+            {% else %}
+            <div class="element">
+                <p>{{name}}</p>
+                <a href="{{ url_for('download', subpath=url) }}" class="reference">Stáhnout</a>
+            </div>
+            {% endif %}
+        {% endfor %}
+        </div>
+        {% endif %}
+    </body>
+</html>
