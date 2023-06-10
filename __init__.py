@@ -17,20 +17,33 @@ import json
 import platform
 import sys
 
+#zde začíná konfigura aplikace
+
 konfig_dict:Dict[str,Union[str,int,bool]]={}
 
 system = platform.system()
 if system == 'Windows':
     print("Běžíš na operačním systému Windows.")
+    path_sep:str="\\"
 elif system == 'Linux':
     print("Běžíš na operačním systému Linux.")
+    path_sep:str="/"
 else:
     print("Neznámý operační systém")
     sys.exit(0)
+    
+try:
+    with open(f'konfiguration{path_sep}server.json',"r") as file:
+        konfig_dict = json.loads(file.read())
+except:
+    input("Při otevírání souboru \"server.json\" nastala chyba")
+    sys.exit(0)
+
 
 semaphor:threading.Semaphore=threading.Semaphore(1)
 
 app = Flask(__name__)
+
 """
 V tomto příkladu je os.urandom(24) použito k vygenerování náhodného tajného klíče o délce 24 bytů.
 Tímto způsobem získáte silný tajný klíč pro zabezpečení vaší aplikace.
@@ -43,22 +56,25 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-content_root:str="C:\\Users\\Misah\\OneDrive\\Plocha\\soubor\\zapisky\\content"
-path_sep:str="\\"
+content_root:str=konfig_dict["content_root"]
 
 folder_scrapper:Folder_scrapper=Folder_scrapper(content_root,path_sep)
 
 content_folder:Dict[str,dict]=folder_scrapper.run_scrapping()
 
+#zde končí konfigurace aplikace
+
 def scrapper_thread():
+    """metoda, která se spustí do threadu, aby aktualizovala obsah \"content\" složku"""
     while True:
         tmp=folder_scrapper.run_scrapping()
         with semaphor:
             global content_folder
             content_folder=tmp
         time.sleep(5)
-update_thread=threading.Thread(target=scrapper_thread,args=())
-update_thread.start()
+
+update_thread=threading.Thread(target=scrapper_thread,args=())#vytvoření threadu pro aktualizaci obsahu složky
+update_thread.start()#spuštění vlákna
 
 def make_elements(content_folder:Dict[str,dict],path:str="")->Tuple[bool,str]:
     tmp:List[Tuple[bool,str]]=[]
@@ -71,6 +87,20 @@ def make_elements(content_folder:Dict[str,dict],path:str="")->Tuple[bool,str]:
     return tmp
 
 def do_compress_and_download(path:str) -> Response:
+    """
+    Funkce vracící HTTP odpověd, která stáhne uživateli zkompresovanou složku
+    
+    Parametry
+    ---------
+    path : str
+        Cesta k složce
+        
+    Returns
+    -------
+    Response
+        HTTP odpověd, která stáhne uživateli zazipovanou složku
+
+    """
     folder_path = path  # Zadejte cestu ke složce, kterou chcete zkomprimovat
     folder_name:str=path.split(path_sep)[-1]
     # Vytvoření dočasného paměťového objektu pro ukládání komprimovaných dat
@@ -91,32 +121,6 @@ def do_compress_and_download(path:str) -> Response:
     response.headers['Content-Length'] = str(memory_file.getvalue().__len__())
 
     return response
-
-@app.route('/prihlasit_post', methods=['POST'])
-@limiter.limit("3/minute")  # Omezí počet pokusů na 3 za minutu
-def post_prihlasit():
-    if 'prihlasen' in session and session['prihlasen']:
-        return redirect(url_for("index"))
-    if request.method == 'POST' and request.form.get("password",None)=="heslo":
-        jmeno = request.form['username']
-        heslo = request.form['password']
-        session['prihlasen'] = True
-        session['jmeno'] = jmeno
-        return redirect(url_for('index'))
-    return redirect(url_for("prihlasit"))
-    
-
-@app.route('/prihlasit', methods=['GET'])
-def prihlasit():
-    if 'prihlasen' in session and session['prihlasen']:
-        return redirect(url_for("index"))
-    return render_template("login.html"),200
-
-@app.route('/odhlasit', methods=['GET'])
-def odhlasit():
-    session.pop('jmeno', None)
-    session.pop("prihlasen",None)
-    return redirect(url_for("prihlasit"))
 
 @app.route("/")
 def index():
@@ -165,4 +169,4 @@ def to_many_requests(error):
 def to_many_requests(error):
     return render_template("chyby/page_not_found.html",url=request.full_path),404
 
-app.run(host="0.0.0.0",port=5000,debug=True)
+app.run(host=konfig_dict["ip_address"],port=konfig_dict["port"],debug=konfig_dict["debug"])
